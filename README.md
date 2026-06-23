@@ -1,1 +1,1 @@
-# StageSecondes
+# Bioinformatics tutorial
