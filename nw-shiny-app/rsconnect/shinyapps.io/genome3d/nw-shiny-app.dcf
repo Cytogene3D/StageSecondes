@@ -1,0 +1,10 @@
+name: nw-shiny-app
+title:
+username: genome3d
+account: genome3d
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 17533670
+bundleId: 12163191
+url: https://genome3d.shinyapps.io/nw-shiny-app/
+version: 1

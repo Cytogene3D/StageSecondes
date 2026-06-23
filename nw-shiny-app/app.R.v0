@@ -1,0 +1,214 @@
+library(shiny)
+library(plotly)
+
+library(shiny)
+library(plotly)
+
+source("R/nw_algorithm.R")
+source("R/nw_traceback.R")
+source("R/nw_explanation.R")
+
+
+ui <- fluidPage(
+
+  titlePanel("Needleman–Wunsch Tutorial"),
+
+  sidebarLayout(
+
+    sidebarPanel(
+
+      textInput("seq1", "Sequence 1", "GATTACA"),
+      textInput("seq2", "Sequence 2", "GCATGCU"),
+
+      numericInput("match", "Match", 1),
+      numericInput("mismatch", "Mismatch", -1),
+      numericInput("gap", "Gap", -2),
+
+      actionButton("run", "Run"),
+
+      sliderInput("step", "Step",
+                  min = 1, max = 1, value = 1)
+    ),
+
+    mainPanel(
+
+      tabsetPanel(
+
+        tabPanel("Matrix",
+                 plotlyOutput("matrix"),
+                 verbatimTextOutput("explain")),
+
+        tabPanel("Traceback",
+                 verbatimTextOutput("alignment"),
+                 tableOutput("path"))
+      )
+    )
+  ),
+
+  sliderInput("step", "Filling step",
+            min = 1,
+            max = 1,
+            value = 1)
+)
+
+server <- function(input, output, session) {
+
+  res <- eventReactive(input$run, {
+
+    run_nw_matrix(
+      input$seq1,
+      input$seq2,
+      input$match,
+      input$mismatch,
+      input$gap
+    )
+
+  })
+
+  observeEvent(res(), {
+
+    updateSliderInput(session,
+                      "step",
+                      min = 1,
+                      max = length(res()$steps),
+                      value = 1)
+  })
+
+  observe({
+    updateSliderInput(
+      session,
+      "step",
+      max = length(res()$steps)
+    )
+  })
+
+  output$matrix <- renderPlotly({
+
+    r <- res()
+
+    k <- input$step
+
+    mat <- build_matrix_step(
+      n = nrow(r$score),
+      steps = r$steps,
+      k = k
+    )
+
+    plot_ly(
+      z = mat,
+      type = "heatmap",
+      colorscale = "Greys"
+    ) %>%
+      layout(
+        xaxis = list(side = "top"),
+        yaxis = list(autorange = "reversed"),
+        title = paste("Filling step:", k)
+      )
+  })
+
+
+
+# output$matrix <- renderPlotly({
+
+#   r <- res()
+#   mat <- r$score
+
+#   aln <- alignment()
+#   path <- aln$path
+
+#   p <- plot_ly() %>%
+#     add_heatmap(
+#       z = mat,
+#       colorscale = "Greys",
+#       showscale = FALSE
+#     ) %>%
+#     layout(
+#       xaxis = list(side = "top"),
+#       yaxis = list(autorange = "reversed")
+#     )
+
+#   # add arrows
+#   annotations <- lapply(seq_len(nrow(path)), function(k) {
+
+#     list(
+#       x = path$j[k],
+#       y = path$i[k],
+#       text = move_symbol(path$move[k]),
+#       showarrow = FALSE,
+#       font = list(color = "red", size = 14)
+#     )
+#   })
+
+#   p %>% layout(annotations = annotations)
+# })
+
+
+# output$matrix <- renderPlotly({
+
+#   mat <- res()$score
+
+#   plot_ly(
+#     z = mat,
+#     type = "heatmap"
+#   ) %>%
+#     layout(
+#       xaxis = list(
+#         side = "top"
+#       ),
+#       yaxis = list(
+#         autorange = "reversed"
+#       )
+#     )
+# })
+
+
+  output$explain <- renderText({
+
+    explain_cell(
+      res()$steps[[input$step]]
+    )
+  })
+
+  tb <- reactive({
+
+    req(res())
+
+    traceback_nw(
+      res()$pointer,
+      res()$seq1,
+      res()$seq2
+    )
+  })
+
+
+  alignment <- reactive({
+    r <- res()
+
+    traceback_nw(
+      pointer = r$pointer,
+      seq1    = r$seq1,
+      seq2    = r$seq2
+    )
+  })
+
+
+  output$alignment <- renderText({
+
+    aln <- alignment()
+
+    paste(
+      aln$alignment1,
+      match_line(aln$alignment1, aln$alignment2),
+      aln$alignment2,
+      sep = "\n"
+    )
+  })
+
+
+  output$path <- renderTable({
+
+    tb()$path
+  })
+}
+
+shinyApp(ui, server)
